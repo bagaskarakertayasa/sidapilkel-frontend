@@ -13,6 +13,8 @@ import {
 import { api } from '../api';
 import { useToast } from '../components/Toast';
 import ConfirmModal from '../components/ConfirmModal';
+import useDebounce from '../hooks/useDebounce';
+import useDeleteAction from '../hooks/useDeleteAction';
 
 export default function DesaPage() {
   const toast = useToast();
@@ -26,6 +28,7 @@ export default function DesaPage() {
   });
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const debouncedSearch = useDebounce(search, 500);
 
   // Modal State
   const [modalOpen, setModalOpen] = useState(false);
@@ -34,16 +37,11 @@ export default function DesaPage() {
   const [namaDesa, setNamaDesa] = useState('');
   const [kecamatan, setKecamatan] = useState('');
 
-  // Delete Modal State
-  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
-  const [deletingDesa, setDeletingDesa] = useState(null);
-  const [deleteLoading, setDeleteLoading] = useState(false);
-
   const fetchDesas = async (page = 1) => {
     setLoading(true);
     try {
       let url = `/desa?page=${page}&limit=10`;
-      if (search.trim()) url += `&search=${encodeURIComponent(search.trim())}`;
+      if (debouncedSearch.trim()) url += `&search=${encodeURIComponent(debouncedSearch.trim())}`;
       const res = await api.get(url);
       setDesas(res.data.items || []);
       setPagination(res.data.pagination || {});
@@ -56,7 +54,21 @@ export default function DesaPage() {
 
   useEffect(() => {
     fetchDesas(1);
-  }, [search]);
+  }, [debouncedSearch]);
+
+  const {
+    modalOpen: deleteModalOpen,
+    targetItem: deletingDesa,
+    loading: deleteLoading,
+    requestDelete: handleRequestDelete,
+    confirmDelete: handleConfirmDelete,
+    closeModal: closeDeleteModal,
+  } = useDeleteAction({
+    endpoint: '/desa',
+    successMessage: 'Desa berhasil dihapus',
+    errorMessage: 'Gagal menghapus desa',
+    onSuccess: () => fetchDesas(pagination.current_page || 1),
+  });
 
   const handleOpenAdd = () => {
     setEditingDesa(null);
@@ -94,27 +106,6 @@ export default function DesaPage() {
       toast.error(err?.data?.message || err.message || 'Gagal menyimpan data desa');
     } finally {
       setModalLoading(false);
-    }
-  };
-
-  const handleRequestDelete = (desa) => {
-    setDeletingDesa(desa);
-    setDeleteModalOpen(true);
-  };
-
-  const handleConfirmDelete = async () => {
-    if (!deletingDesa) return;
-    setDeleteLoading(true);
-    try {
-      await api.del(`/desa/${deletingDesa.id}`);
-      toast.success('Desa berhasil dihapus');
-      setDeleteModalOpen(false);
-      setDeletingDesa(null);
-      fetchDesas(pagination.current_page || 1);
-    } catch (err) {
-      toast.error(err?.data?.message || err.message || 'Gagal menghapus desa');
-    } finally {
-      setDeleteLoading(false);
     }
   };
 
@@ -307,10 +298,7 @@ export default function DesaPage() {
       {/* Delete Confirmation Modal */}
       <ConfirmModal
         isOpen={deleteModalOpen}
-        onClose={() => {
-          setDeleteModalOpen(false);
-          setDeletingDesa(null);
-        }}
+        onClose={closeDeleteModal}
         onConfirm={handleConfirmDelete}
         title="Hapus Master Desa"
         message={`Apakah Anda yakin ingin menghapus data Desa ${deletingDesa?.nama_desa}? Seluruh TPS dan data calon terkait pada desa ini akan ikut terhapus.`}

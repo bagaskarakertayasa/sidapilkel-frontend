@@ -20,6 +20,8 @@ import { api } from '../api';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../components/Toast';
 import ConfirmModal from '../components/ConfirmModal';
+import useDebounce from '../hooks/useDebounce';
+import useDeleteAction from '../hooks/useDeleteAction';
 
 export default function UsersPage() {
   const { user: currentUser } = useAuth();
@@ -35,16 +37,12 @@ export default function UsersPage() {
   });
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const debouncedSearch = useDebounce(search, 500);
 
   // Modal State
   const [modalOpen, setModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
   const [modalLoading, setModalLoading] = useState(false);
-
-  // Delete Modal State
-  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
-  const [deletingUser, setDeletingUser] = useState(null);
-  const [deleteLoading, setDeleteLoading] = useState(false);
 
   // Form State
   const [namaDepan, setNamaDepan] = useState('');
@@ -58,6 +56,7 @@ export default function UsersPage() {
   const [desaSearch, setDesaSearch] = useState('');
   const [desaSuggestions, setDesaSuggestions] = useState([]);
   const [showDesaSuggestions, setShowDesaSuggestions] = useState(false);
+  const debouncedDesaSearch = useDebounce(desaSearch, 300);
 
   // Password Reset Modal
   const [pwdModalOpen, setPwdModalOpen] = useState(false);
@@ -66,25 +65,25 @@ export default function UsersPage() {
   const [showResetPassword, setShowResetPassword] = useState(false);
   const [pwdLoading, setPwdLoading] = useState(false);
 
-  // Debounced search for desa dropdown in modal
+  // Fetch desa for dropdown
   useEffect(() => {
     if (!modalOpen || role !== 'ADMIN_DESA') return;
-    const timer = setTimeout(async () => {
+    const fetchSuggestions = async () => {
       try {
-        const res = await api.get(`/desa/simple?search=${encodeURIComponent(desaSearch.trim())}&limit=10`);
+        const res = await api.get(`/desa/simple?search=${encodeURIComponent(debouncedDesaSearch.trim())}&limit=10`);
         setDesaSuggestions(res.data || []);
       } catch {
         // ignore
       }
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [desaSearch, modalOpen, role]);
+    };
+    fetchSuggestions();
+  }, [debouncedDesaSearch, modalOpen, role]);
 
   const fetchUsers = async (page = 1) => {
     setLoading(true);
     try {
       let url = `/users?page=${page}&limit=10`;
-      if (search.trim()) url += `&search=${encodeURIComponent(search.trim())}`;
+      if (debouncedSearch.trim()) url += `&search=${encodeURIComponent(debouncedSearch.trim())}`;
       const res = await api.get(url);
       setUsers(res.data.items || []);
       setPagination(res.data.pagination || {});
@@ -97,7 +96,7 @@ export default function UsersPage() {
 
   useEffect(() => {
     fetchUsers(1);
-  }, [search]);
+  }, [debouncedSearch]);
 
   const handleOpenAdd = () => {
     setEditingUser(null);
@@ -207,29 +206,26 @@ export default function UsersPage() {
     }
   };
 
+  const {
+    modalOpen: deleteModalOpen,
+    targetItem: deletingUser,
+    loading: deleteLoading,
+    requestDelete: requestUserDelete,
+    confirmDelete: handleConfirmDelete,
+    closeModal: closeDeleteModal,
+  } = useDeleteAction({
+    endpoint: '/users',
+    successMessage: 'Pengguna berhasil dihapus',
+    errorMessage: 'Gagal menghapus pengguna',
+    onSuccess: () => fetchUsers(pagination.current_page || 1),
+  });
+
   const handleRequestDelete = (targetUser) => {
     if (targetUser.id === currentUser?.id) {
       toast.error('Anda tidak dapat menghapus akun Anda sendiri');
       return;
     }
-    setDeletingUser(targetUser);
-    setDeleteModalOpen(true);
-  };
-
-  const handleConfirmDelete = async () => {
-    if (!deletingUser) return;
-    setDeleteLoading(true);
-    try {
-      await api.del(`/users/${deletingUser.id}`);
-      toast.success('Pengguna berhasil dihapus');
-      setDeleteModalOpen(false);
-      setDeletingUser(null);
-      fetchUsers(pagination.current_page || 1);
-    } catch (err) {
-      toast.error(err?.data?.message || 'Gagal menghapus pengguna');
-    } finally {
-      setDeleteLoading(false);
-    }
+    requestUserDelete(targetUser);
   };
 
   return (
@@ -678,10 +674,7 @@ export default function UsersPage() {
       {/* Delete User Confirmation Modal */}
       <ConfirmModal
         isOpen={deleteModalOpen}
-        onClose={() => {
-          setDeleteModalOpen(false);
-          setDeletingUser(null);
-        }}
+        onClose={closeDeleteModal}
         onConfirm={handleConfirmDelete}
         title="Hapus Pengguna"
         message={`Apakah Anda yakin ingin menghapus pengguna "${deletingUser?.username}" (${deletingUser?.nama_depan} ${deletingUser?.nama_belakang || ''})? Tindakan ini tidak dapat dibatalkan.`}

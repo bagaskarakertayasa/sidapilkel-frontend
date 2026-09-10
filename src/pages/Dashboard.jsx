@@ -13,10 +13,12 @@ import {
   ChevronLeft,
   ChevronRight,
   Loader2,
+  X,
 } from 'lucide-react';
 import { api } from '../api';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../components/Toast';
+import useDebounce from '../hooks/useDebounce';
 
 export default function Dashboard({ onNavigate }) {
   const { user, isAdminPusat } = useAuth();
@@ -25,17 +27,13 @@ export default function Dashboard({ onNavigate }) {
   const [loading, setLoading] = useState(true);
   const [tableLoading, setTableLoading] = useState(false);
   const [searchDesa, setSearchDesa] = useState('');
-  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const debouncedSearch = useDebounce(searchDesa, 350);
   const [page, setPage] = useState(1);
+  const itemsPerPage = 8;
 
-  // Debounce search filter
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedSearch(searchDesa);
-      setPage(1);
-    }, 350);
-    return () => clearTimeout(timer);
-  }, [searchDesa]);
+    setPage(1);
+  }, [debouncedSearch]);
 
   const fetchStats = async (pageNum = page, searchQuery = debouncedSearch) => {
     if (!data) setLoading(true);
