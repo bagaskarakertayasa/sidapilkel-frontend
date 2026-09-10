@@ -1,65 +1,14 @@
 const BASE_URL = '/api/v1';
-const ONE_WEEK_SECONDS = 7 * 24 * 60 * 60; // 604,800 detik = 1 minggu
-
-export function getCookie(name) {
-  if (typeof document === 'undefined') return null;
-  const match = document.cookie.match(new RegExp('(?:^|;\\s*)' + name + '=([^;]*)'));
-  return match ? decodeURIComponent(match[1]) : null;
-}
-
-export function setCookie(name, value, maxAge = ONE_WEEK_SECONDS) {
-  if (typeof document === 'undefined') return;
-  if (value) {
-    document.cookie = `${name}=${encodeURIComponent(value)}; max-age=${maxAge}; path=/; SameSite=Lax`;
-  } else {
-    document.cookie = `${name}=; max-age=0; path=/; SameSite=Lax`;
-  }
-}
-
-export function removeCookie(name) {
-  if (typeof document === 'undefined') return;
-  document.cookie = `${name}=; max-age=0; path=/; SameSite=Lax`;
-}
-
-export function getToken() {
-  return getCookie('token');
-}
-
-export function setToken(token) {
-  if (token) {
-    setCookie('token', token, ONE_WEEK_SECONDS);
-  } else {
-    removeCookie('token');
-  }
-}
-
-export function getUser() {
-  const userStr = getCookie('user');
-  try {
-    return userStr ? JSON.parse(userStr) : null;
-  } catch {
-    return null;
-  }
-}
-
-export function setUser(user) {
-  if (user) {
-    setCookie('user', JSON.stringify(user), ONE_WEEK_SECONDS);
-  } else {
-    removeCookie('user');
-  }
-}
 
 async function request(endpoint, options = {}) {
-  const token = getToken();
   const headers = {
     Accept: 'application/json',
     ...(options.headers || {}),
   };
 
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
-  }
+  // Token is stored in HttpOnly cookie set by backend — browser sends it automatically.
+  // No Authorization header needed for browser requests.
+  // API clients (Postman/curl) can still use Authorization: Bearer <token>.
 
   // If not FormData, default to JSON
   if (!(options.body instanceof FormData)) {
@@ -71,6 +20,7 @@ async function request(endpoint, options = {}) {
   const response = await fetch(url, {
     ...options,
     headers,
+    credentials: 'same-origin', // ensure HttpOnly cookies are sent
   });
 
   let data = null;
@@ -83,8 +33,6 @@ async function request(endpoint, options = {}) {
 
   if (!response.ok) {
     if (response.status === 401) {
-      setToken(null);
-      setUser(null);
       window.dispatchEvent(new Event('auth:unauthorized'));
     }
     const errorMsg = data?.message || data?.error || (typeof data === 'string' ? data : 'Terjadi kesalahan pada server');
