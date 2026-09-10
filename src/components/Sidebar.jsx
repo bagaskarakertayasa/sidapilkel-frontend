@@ -8,7 +8,6 @@ import {
   LogOut,
   X,
   FileSpreadsheet,
-  Layers,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from './Toast';
@@ -86,8 +85,8 @@ export default function Sidebar({ currentPage, setCurrentPage, isOpen, setIsOpen
         {/* Brand Header */}
         <div className="flex items-center justify-between h-[90px] px-6 border-b border-[#F3F4F3]">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-[#165DFF] rounded-xl flex items-center justify-center shadow-lg shadow-[#165DFF]/20 text-white font-bold">
-              <Layers className="w-6 h-6" />
+            <div className="w-10 h-10 flex items-center justify-center shrink-0">
+              <img src="/favicon.png" alt="Logo Kabupaten Tabanan" className="w-full h-full object-contain" />
             </div>
             <div>
               <h1 className="font-bold text-xl tracking-tight text-[#080C1A]">SIDAPILKEL</h1>

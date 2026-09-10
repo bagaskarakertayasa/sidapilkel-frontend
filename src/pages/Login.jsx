@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Layers, Lock, User, ArrowRight, AlertCircle, Loader2, Eye, EyeOff, Clock } from 'lucide-react';
+import { Lock, User, ArrowRight, Loader2, Eye, EyeOff, Clock } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../components/Toast';
 
@@ -10,7 +10,6 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [errorMsg, setErrorMsg] = useState('');
   const [retryCountdown, setRetryCountdown] = useState(0);
 
   // Countdown timer for 429 Too Many Requests
@@ -21,7 +20,6 @@ export default function Login() {
       setRetryCountdown((prev) => {
         if (prev <= 1) {
           clearInterval(timer);
-          setErrorMsg('');
           return 0;
         }
         return prev - 1;
@@ -36,12 +34,11 @@ export default function Login() {
     if (retryCountdown > 0) return;
 
     if (!username.trim() || !password.trim()) {
-      setErrorMsg('Username dan password wajib diisi');
+      toast.error('Username dan password wajib diisi');
       return;
     }
 
     setSubmitting(true);
-    setErrorMsg('');
     try {
       await login(username, password);
       toast.success('Berhasil masuk ke sistem');
@@ -50,30 +47,24 @@ export default function Login() {
         const retrySec = parseInt(err?.data?.retry_after || err?.retryAfter || 60, 10);
         setRetryCountdown(retrySec);
         const msg = `Terlalu banyak percobaan login. Tombol masuk dinonaktifkan. Silakan coba lagi dalam ${retrySec} detik.`;
-        setErrorMsg(msg);
         toast.error(msg);
         return;
       }
       const msg = err?.data?.message || err?.message || 'Login gagal. Periksa username dan password.';
-      setErrorMsg(msg);
       toast.error(msg);
     } finally {
       setSubmitting(false);
     }
   };
 
-  const handleQuickFill = (u, p) => {
-    setUsername(u);
-    setPassword(p);
-  };
 
   return (
     <div className="min-h-screen bg-[#EFF2F7] flex flex-col justify-center items-center p-4 sm:p-6">
       <div className="max-w-md w-full">
         {/* Brand Card */}
         <div className="text-center mb-8">
-          <div className="inline-flex size-16 bg-[#165DFF] text-white rounded-2xl items-center justify-center shadow-xl shadow-[#165DFF]/25 mb-4">
-            <Layers className="size-8" />
+          <div className="inline-flex size-16 mb-2">
+            <img src="/favicon.png" alt="Logo Kabupaten Tabanan" className="w-full h-full object-contain" />
           </div>
           <h1 className="text-3xl font-bold text-[#080C1A] tracking-tight">SIDAPILKEL</h1>
           <p className="text-[#6A7686] text-sm mt-1">
@@ -89,13 +80,6 @@ export default function Login() {
               Silakan masukkan kredensial akun Anda untuk mengakses sistem
             </p>
           </div>
-
-          {errorMsg && (
-            <div className="mb-5 p-3.5 rounded-xl bg-[#ED6B60]/10 border border-[#ED6B60]/20 flex items-center gap-3 text-[#ED6B60] text-sm">
-              <AlertCircle className="size-5 flex-shrink-0" />
-              <span>{errorMsg}</span>
-            </div>
-          )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
@@ -168,31 +152,6 @@ export default function Login() {
               )}
             </button>
           </form>
-
-          {/* Quick Fill Credentials Helper */}
-          <div className="mt-8 pt-6 border-t border-[#F3F4F3]">
-            <p className="text-xs font-bold text-[#6A7686] uppercase tracking-wider mb-2.5">
-              Akun Cepat (Testing)
-            </p>
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => handleQuickFill('admin', 'admin123')}
-                className="text-left p-2.5 rounded-xl border border-[#F3F4F3] bg-[#EFF2F7]/40 hover:bg-[#165DFF]/10 hover:border-[#165DFF]/30 transition-colors cursor-pointer"
-              >
-                <span className="block text-xs font-bold text-[#165DFF]">Admin Pusat</span>
-                <span className="block text-[11px] text-[#6A7686]">admin / admin123</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => handleQuickFill('perean_kangin', 'password123')}
-                className="text-left p-2.5 rounded-xl border border-[#F3F4F3] bg-[#EFF2F7]/40 hover:bg-[#30B22D]/10 hover:border-[#30B22D]/30 transition-colors cursor-pointer"
-              >
-                <span className="block text-xs font-bold text-[#30B22D]">Admin Desa</span>
-                <span className="block text-[11px] text-[#6A7686]">perean_kangin / pass..</span>
-              </button>
-            </div>
-          </div>
         </div>
 
         {/* Footer info */}
