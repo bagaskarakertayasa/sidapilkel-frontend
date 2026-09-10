@@ -17,6 +17,8 @@ import { api } from '../api';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../components/Toast';
 import ConfirmModal from '../components/ConfirmModal';
+import useDebounce from '../hooks/useDebounce';
+import useDeleteAction from '../hooks/useDeleteAction';
 
 export default function TPSPage() {
   const { user, isAdminPusat } = useAuth();
@@ -33,28 +35,15 @@ export default function TPSPage() {
   });
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const debouncedSearch = useDebounce(search, 350);
   const [selectedDesaId, setSelectedDesaId] = useState(user?.desa_id || '');
   const [desas, setDesas] = useState([]);
-
-  // Debounce search filter
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedSearch(search);
-    }, 350);
-    return () => clearTimeout(timer);
-  }, [search]);
 
   // Modal State
   const [modalOpen, setModalOpen] = useState(false);
   const [editingTps, setEditingTps] = useState(null);
   const [modalLoading, setModalLoading] = useState(false);
   const [calonList, setCalonList] = useState([]);
-
-  // Delete Modal State
-  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
-  const [deletingTps, setDeletingTps] = useState(null);
-  const [deleteLoading, setDeleteLoading] = useState(false);
 
   // Form State
   const [formDesaId, setFormDesaId] = useState('');
@@ -165,8 +154,8 @@ export default function TPSPage() {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (calonList.length === 0) {
-      toast.error('Desa ini belum memiliki calon perbekel. Daftarkan calon terlebih dahulu!');
+    if (calonList.length < 2) {
+      toast.error('Minimal harus ada 2 Calon Perbekel di desa ini untuk membuat TPS.');
       return;
     }
 
@@ -202,26 +191,19 @@ export default function TPSPage() {
     }
   };
 
-  const handleRequestDelete = (tps) => {
-    setDeletingTps(tps);
-    setDeleteModalOpen(true);
-  };
-
-  const handleConfirmDelete = async () => {
-    if (!deletingTps) return;
-    setDeleteLoading(true);
-    try {
-      await api.del(`/tps/${deletingTps.id}`);
-      toast.success('Data TPS berhasil dihapus');
-      setDeleteModalOpen(false);
-      setDeletingTps(null);
-      fetchTPS(pagination.current_page || 1);
-    } catch (err) {
-      toast.error(err?.data?.message || err.message || 'Gagal menghapus TPS');
-    } finally {
-      setDeleteLoading(false);
-    }
-  };
+  const {
+    modalOpen: deleteModalOpen,
+    targetItem: deletingTps,
+    loading: deleteLoading,
+    requestDelete: handleRequestDelete,
+    confirmDelete: handleConfirmDelete,
+    closeModal: closeDeleteModal,
+  } = useDeleteAction({
+    endpoint: '/tps',
+    successMessage: 'Data TPS berhasil dihapus',
+    errorMessage: 'Gagal menghapus TPS',
+    onSuccess: () => fetchTPS(pagination.current_page || 1),
+  });
 
   return (
     <div className="space-y-6">
@@ -506,9 +488,9 @@ export default function TPSPage() {
                   </span>
                 </div>
 
-                {calonList.length === 0 ? (
+                {calonList.length < 2 ? (
                   <div className="p-3 bg-[#FED71F]/10 border border-[#FED71F]/30 rounded-xl text-xs text-[#080C1A]">
-                    Belum ada calon perbekel untuk desa ini. Daftarkan calon di menu Calon terlebih dahulu.
+                    Minimal harus ada 2 calon perbekel. Saat ini baru {calonList.length} calon terdaftar.
                   </div>
                 ) : (
                   <div className="space-y-2.5 max-h-48 overflow-y-auto pr-1">
@@ -558,7 +540,7 @@ export default function TPSPage() {
                 </button>
                 <button
                   type="submit"
-                  disabled={modalLoading || calonList.length === 0}
+                  disabled={modalLoading || calonList.length < 2}
                   className="px-5 py-2.5 rounded-xl bg-[#165DFF] hover:bg-[#0E4BD9] text-white text-xs font-semibold shadow-lg shadow-[#165DFF]/20 flex items-center gap-2 cursor-pointer disabled:opacity-50"
                 >
                   {modalLoading && <Loader2 className="size-4 animate-spin" />}
@@ -573,7 +555,7 @@ export default function TPSPage() {
       {/* Delete Confirmation Modal */}
       <ConfirmModal
         isOpen={deleteModalOpen}
-        onClose={() => setDeleteModalOpen(false)}
+        onClose={closeDeleteModal}
         onConfirm={handleConfirmDelete}
         loading={deleteLoading}
         title="Hapus Data TPS"

@@ -17,6 +17,8 @@ import { api } from '../api';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../components/Toast';
 import ConfirmModal from '../components/ConfirmModal';
+import useDebounce from '../hooks/useDebounce';
+import useDeleteAction from '../hooks/useDeleteAction';
 
 export default function CalonPage() {
   const { user, isAdminPusat } = useAuth();
@@ -29,16 +31,9 @@ export default function CalonPage() {
 
   // Search Filter Desa with Debounce (for Admin Pusat)
   const [desaSearch, setDesaSearch] = useState('');
-  const [debouncedDesaSearch, setDebouncedDesaSearch] = useState('');
+  const debouncedDesaSearch = useDebounce(desaSearch, 300);
   const [matchingDesas, setMatchingDesas] = useState([]);
   const [showDesaDropdown, setShowDesaDropdown] = useState(false);
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedDesaSearch(desaSearch);
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [desaSearch]);
 
   useEffect(() => {
     if (isAdminPusat) {
@@ -53,17 +48,12 @@ export default function CalonPage() {
   const [editingCalon, setEditingCalon] = useState(null);
   const [modalLoading, setModalLoading] = useState(false);
 
-  // Delete & Reset Modal States
-  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
-  const [deletingCalon, setDeletingCalon] = useState(null);
-  const [deleteLoading, setDeleteLoading] = useState(false);
-
+  // Reset Modal States
   const [resetModalOpen, setResetModalOpen] = useState(false);
   const [resetLoading, setResetLoading] = useState(false);
 
   // Form states
   const [formDesaId, setFormDesaId] = useState('');
-  const [formNoUrut, setFormNoUrut] = useState('');
   const [formNamaCalon, setFormNamaCalon] = useState('');
   const [formAsalBanjar, setFormAsalBanjar] = useState('');
   const [formFotoPath, setFormFotoPath] = useState('');
@@ -113,7 +103,6 @@ export default function CalonPage() {
   const handleOpenAdd = () => {
     setEditingCalon(null);
     setFormDesaId(selectedDesaId);
-    setFormNoUrut(calonList.length + 1);
     setFormNamaCalon('');
     setFormAsalBanjar('');
     setFormFotoPath('');
@@ -124,7 +113,6 @@ export default function CalonPage() {
   const handleOpenEdit = (calon) => {
     setEditingCalon(calon);
     setFormDesaId(calon.desa_id);
-    setFormNoUrut(calon.no_urut);
     setFormNamaCalon(calon.nama_calon);
     setFormAsalBanjar(calon.asal_banjar);
     setFormFotoPath(calon.foto || '');
@@ -161,9 +149,9 @@ export default function CalonPage() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
     const payload = {
       desa_id: formDesaId,
-      no_urut: parseInt(formNoUrut),
       nama_calon: formNamaCalon,
       asal_banjar: formAsalBanjar,
       foto: formFotoPath || null,
@@ -187,26 +175,7 @@ export default function CalonPage() {
     }
   };
 
-  const handleRequestDelete = (calon) => {
-    setDeletingCalon(calon);
-    setDeleteModalOpen(true);
-  };
-
-  const handleConfirmDelete = async () => {
-    if (!deletingCalon) return;
-    setDeleteLoading(true);
-    try {
-      await api.del(`/calon/${deletingCalon.id}`);
-      toast.success('Calon berhasil dihapus');
-      setDeleteModalOpen(false);
-      setDeletingCalon(null);
-      fetchCalon(selectedDesaId);
-    } catch (err) {
-      toast.error(err?.data?.message || err.message || 'Gagal menghapus calon');
-    } finally {
-      setDeleteLoading(false);
-    }
-  };
+  // No individual delete anymore
 
   const handleRequestReset = () => {
     if (!selectedDesaId) return;
@@ -371,13 +340,6 @@ export default function CalonPage() {
                       >
                         <Edit2 className="size-3.5" />
                       </button>
-                      <button
-                        onClick={() => handleRequestDelete(calon)}
-                        className="size-8 rounded-lg bg-[#EFF2F7] hover:bg-[#ED6B60]/10 text-[#6A7686] hover:text-[#ED6B60] flex items-center justify-center transition-colors cursor-pointer"
-                        title="Hapus Calon"
-                      >
-                        <Trash2 className="size-3.5" />
-                      </button>
                     </div>
                   )}
                 </div>
@@ -449,33 +411,18 @@ export default function CalonPage() {
                 </div>
               )}
 
-              <div className="grid grid-cols-3 gap-3">
-                <div>
-                  <label className="block text-xs font-bold text-[#6A7686] uppercase mb-1">
-                    No. Urut
-                  </label>
-                  <input
-                    type="number"
-                    min="1"
-                    value={formNoUrut}
-                    onChange={(e) => setFormNoUrut(e.target.value)}
-                    required
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-[#F3F4F3] bg-[#EFF2F7]/50 text-xs font-bold outline-none"
-                  />
-                </div>
-                <div className="col-span-2">
-                  <label className="block text-xs font-bold text-[#6A7686] uppercase mb-1">
-                    Nama Lengkap Calon
-                  </label>
-                  <input
-                    type="text"
-                    value={formNamaCalon}
-                    onChange={(e) => setFormNamaCalon(e.target.value)}
-                    required
-                    placeholder="Nama calon & gelar"
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-[#F3F4F3] bg-[#EFF2F7]/50 text-xs font-medium outline-none"
-                  />
-                </div>
+              <div>
+                <label className="block text-xs font-bold text-[#6A7686] uppercase mb-1">
+                  Nama Lengkap Calon <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={formNamaCalon}
+                  onChange={(e) => setFormNamaCalon(e.target.value)}
+                  required
+                  placeholder="Nama calon & gelar"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-[#F3F4F3] bg-[#EFF2F7]/50 text-xs font-medium outline-none"
+                />
               </div>
 
               <div>
@@ -555,29 +502,14 @@ export default function CalonPage() {
         </div>
       )}
 
-      {/* Confirm Delete Modal */}
-      <ConfirmModal
-        isOpen={deleteModalOpen}
-        onClose={() => {
-          setDeleteModalOpen(false);
-          setDeletingCalon(null);
-        }}
-        onConfirm={handleConfirmDelete}
-        title="Hapus Calon Perbekel"
-        message={`Apakah Anda yakin ingin menghapus calon #${deletingCalon?.no_urut} (${deletingCalon?.nama_calon})? Tindakan ini tidak dapat dibatalkan.`}
-        confirmText="Hapus Calon"
-        type="danger"
-        loading={deleteLoading}
-      />
-
       {/* Confirm Reset Modal */}
       <ConfirmModal
         isOpen={resetModalOpen}
         onClose={() => setResetModalOpen(false)}
         onConfirm={handleConfirmReset}
         title="Reset Calon Desa"
-        message={`Apakah Anda yakin ingin mereset seluruh data calon pada Desa ${currentDesa?.nama_desa || ''}? Semua data calon dan perolehan suara terkait akan dihapus.`}
-        confirmText="Reset Semua Calon"
+        message={`Apakah Anda yakin ingin mereset seluruh data calon pada Desa ${currentDesa?.nama_desa || ''}? Semua data calon, TPS, dan perolehan suara terkait akan dihapus secara permanen.`}
+        confirmText="Reset Semua"
         type="danger"
         loading={resetLoading}
       />
